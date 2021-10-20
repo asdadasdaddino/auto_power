@@ -11,3 +11,9 @@ response_pball = requests.post("https://www.powerballgame.co.kr/", headers={'con
 print(raw_data)
 print(response_pball['content'])
 print(len(response_pball['content']))
+print(response_pball['content'][0])
+
+print(datetime.datetime.now().strftime("%m-%d %H:%M:%S"))
+
+print(response_pball['content'][0]['number'].split(','))
+print(response_pball['content'][0]['number'].split(',')[0])

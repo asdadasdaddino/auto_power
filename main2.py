@@ -9,6 +9,7 @@ from PyQt5.QtCore import *
 
 form_class = uic.loadUiType("untitled.ui")[0]
 global userid, userpw, userkey, balance
+
 class Thread(QThread):
     # 초기화 메서드 구현
     def __init__(self, parent): #parent는 WndowClass에서 전달하는 self이다.(WidnowClass의 인스턴스)
@@ -31,17 +32,40 @@ class Thread(QThread):
                 self.parent.bal_text.setText("현재 잔고 : "+balance+" 원")
 
                 #파워볼 파싱 시작
-                current_time = datetime.now()
-                current_day = current_time.strftime("%Y-%M-%d")
+                current_time = datetime.datetime.now()
+                current_day = current_time.strftime("%Y-%m-%d")
                 raw_data = 'view=action&action=ajaxPowerballLog&actionType=dayLog&date='+current_day+'&page=' + str(
                     parse_count)
                 response_pball = requests.post("https://www.powerballgame.co.kr/", headers={'content-length': '76',
                                                                                       'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'},
                                          data=raw_data).json()
-
-                time.sleep(1000)
-                textbrowser.append("백그라운드 동작중..")
-                # textbrowser.verticalScrollBar().setValue(textbrowser.verticalScrollBar().maximum())
+                #패턴1 체크/시작
+                if self.parent.checkBox_1.isChecked():
+                    #최근결과 포함 5회차의 결과 필요
+                    if len(response_pball['content']) > 6:
+                        #(3차 조건) 마지막 회차의 왼쪽합/오른쪽합이 홀/홀: 인 경우
+                        ball_list = response_pball['content'][0]['number'].split(',')
+                        if (int(ball_list[0]) + int(ball_list[1])) % 2 == 1 and (int(ball_list[3]) + int(ball_list[4])) % 2 == 1:
+                            #(2차 조건) 짝/짝:홀 인 경우
+                            ball_list2 = response_pball['content'][1]['number'].split(',')
+                            ball_list3 = response_pball['content'][2]['number'].split(',')
+                            ball_list4 = response_pball['content'][3]['number'].split(',')
+                            ball_list5 = response_pball['content'][4]['number'].split(',')
+                            print(
+                                int(ball_list2[0]) + int(ball_list3[0]) + int(ball_list4[0]) + int(ball_list5[0]) + int(
+                                    ball_list2[1]) + int(ball_list3[1]) + int(ball_list4[1]) + int(ball_list5[1]))
+                            print(
+                                int(ball_list2[3]) + int(ball_list3[3]) + int(ball_list4[3]) + int(ball_list5[3]) + int(
+                                    ball_list2[4]) + int(ball_list3[4]) + int(ball_list4[4]) + int(ball_list5[4]))
+                            print(response_pball['content'][1]['numberOddEven'])
+                            left_sum = (int(ball_list2[0]) + int(ball_list3[0]) + int(ball_list4[0]) + int(ball_list5[0]) + int(ball_list2[1]) + int(ball_list3[1]) + int(ball_list4[1]) + int(ball_list5[1]))
+                            right_sum = (int(ball_list2[3]) + int(ball_list3[3]) + int(ball_list4[3]) + int(ball_list5[3]) + int(ball_list2[4]) + int(ball_list3[4]) + int(ball_list4[4]) + int(ball_list5[4]))
+                            if left_sum%2 == 0 and right_sum%2 == 0 and response_pball['content'][1]['numberOddEven'] == 'odd':
+                                #(1차 조건)
+                                print("1차까지 왔슈")
+                                textbrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"패턴1 직전회차 홀..")
+                                textbrowser.verticalScrollBar().setValue(textbrowser.verticalScrollBar().maximum())
+                time.sleep(100)
             except:
                 pass
 
@@ -76,7 +100,7 @@ class WindowClass(QMainWindow, form_class) :
                     if response_login_data['code'] != 1:
                         QMessageBox.critical(self, "로그인 실패", "ID/PW를 확인해주세요.")
                     else:
-                        self.textBrowser.append("로그인 성공!")
+                        self.textBrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"베팅을 시작합니다.")
                         userkey = response_login_data['more_info']['key']
                         self.start_btn.setText("정지")
                         if self.Th1.isRunning():
@@ -89,7 +113,7 @@ class WindowClass(QMainWindow, form_class) :
                     QMessageBox.critical(self, "사이트 접속 실패", "사이트 상태를 확인해주세요.")
 
         else:
-            self.textBrowser.append("정지 클릭")
+            self.textBrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"베팅을 정지합니다.")
             self.start_btn.setText("시작")
             if self.Th1.isRunning():
                 self.Th1.terminate()
