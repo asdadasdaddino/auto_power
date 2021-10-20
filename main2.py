@@ -41,30 +41,78 @@ class Thread(QThread):
                                          data=raw_data).json()
                 #패턴1 체크/시작
                 if self.parent.checkBox_1.isChecked():
-                    #최근결과 포함 5회차의 결과 필요
+
+                    #최근결과 포함 6회차의 결과 필요
                     if len(response_pball['content']) > 6:
-                        #(3차 조건) 마지막 회차의 왼쪽합/오른쪽합이 홀/홀: 인 경우
                         ball_list = response_pball['content'][0]['number'].split(',')
+                        ball_list2 = response_pball['content'][1]['number'].split(',')
+                        ball_list3 = response_pball['content'][2]['number'].split(',')
+                        ball_list4 = response_pball['content'][3]['number'].split(',')
+                        ball_list5 = response_pball['content'][4]['number'].split(',')
+                        ball_list6 = response_pball['content'][5]['number'].split(',')
+
+                        #(3차 조건) 마지막 회차의 왼쪽합/오른쪽합이 홀/홀: 인 경우
                         if (int(ball_list[0]) + int(ball_list[1])) % 2 == 1 and (int(ball_list[3]) + int(ball_list[4])) % 2 == 1:
-                            #(2차 조건) 짝/짝:홀 인 경우
-                            ball_list2 = response_pball['content'][1]['number'].split(',')
-                            ball_list3 = response_pball['content'][2]['number'].split(',')
-                            ball_list4 = response_pball['content'][3]['number'].split(',')
-                            ball_list5 = response_pball['content'][4]['number'].split(',')
-                            print(
-                                int(ball_list2[0]) + int(ball_list3[0]) + int(ball_list4[0]) + int(ball_list5[0]) + int(
-                                    ball_list2[1]) + int(ball_list3[1]) + int(ball_list4[1]) + int(ball_list5[1]))
-                            print(
-                                int(ball_list2[3]) + int(ball_list3[3]) + int(ball_list4[3]) + int(ball_list5[3]) + int(
-                                    ball_list2[4]) + int(ball_list3[4]) + int(ball_list4[4]) + int(ball_list5[4]))
-                            print(response_pball['content'][1]['numberOddEven'])
-                            left_sum = (int(ball_list2[0]) + int(ball_list3[0]) + int(ball_list4[0]) + int(ball_list5[0]) + int(ball_list2[1]) + int(ball_list3[1]) + int(ball_list4[1]) + int(ball_list5[1]))
-                            right_sum = (int(ball_list2[3]) + int(ball_list3[3]) + int(ball_list4[3]) + int(ball_list5[3]) + int(ball_list2[4]) + int(ball_list3[4]) + int(ball_list4[4]) + int(ball_list5[4]))
-                            if left_sum%2 == 0 and right_sum%2 == 0 and response_pball['content'][1]['numberOddEven'] == 'odd':
-                                #(1차 조건)
-                                print("1차까지 왔슈")
-                                textbrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"패턴1 직전회차 홀..")
-                                textbrowser.verticalScrollBar().setValue(textbrowser.verticalScrollBar().maximum())
+                            left_sum = (int(ball_list2[0]) + int(ball_list3[0]) + int(ball_list4[0]) + int(
+                                ball_list5[0]) + int(ball_list2[1]) + int(ball_list3[1]) + int(ball_list4[1]) + int(
+                                ball_list5[1]))
+                            right_sum = (int(ball_list2[3]) + int(ball_list3[3]) + int(ball_list4[3]) + int(
+                                ball_list5[3]) + int(ball_list2[4]) + int(ball_list3[4]) + int(ball_list4[4]) + int(
+                                ball_list5[4]))
+                            # (2차 조건) 짝/짝:홀 인 경우
+                            if left_sum%2 == 0 and right_sum%2 == 0 and response_pball['content'][0]['numberOddEven'] == 'odd':
+                                left_sum1 = (int(ball_list6[0]) + int(ball_list3[0]) + int(ball_list4[0]) + int(
+                                    ball_list5[0]) + int(ball_list6[1]) + int(ball_list3[1]) + int(ball_list4[1]) + int(
+                                    ball_list5[1]))
+                                right_sum1 = (int(ball_list6[3]) + int(ball_list3[3]) + int(ball_list4[3]) + int(
+                                    ball_list5[3]) + int(ball_list6[4]) + int(ball_list3[4]) + int(ball_list4[4]) + int(
+                                    ball_list5[4]))
+                                # (1차 조건) 홀/홀:홀 or 짝/짝:짝 인 경우
+                                if (left_sum1 % 2 == 0 and right_sum1 % 2 == 0 and response_pball['content'][1][
+                                    'numberOddEven'] == 'even') or (
+                                        left_sum1 % 2 == 1 and right_sum1 % 2 == 1 and response_pball['content'][1][
+                                    'numberOddEven'] == 'odd'):
+                                    print("패턴1 베팅")
+                                    print()
+                                    textbrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"패턴1 직전회차 홀..")
+                                    textbrowser.verticalScrollBar().setValue(textbrowser.verticalScrollBar().maximum())
+
+                        # (3차 조건-2) 마지막 회차의 왼쪽합/오른쪽합이 짝/짝: 인 경우
+                        if (int(ball_list[0]) + int(ball_list[1])) % 2 == 0 and (
+                                int(ball_list[3]) + int(ball_list[4])) % 2 == 0:
+                            left_sum = (int(ball_list2[0]) + int(ball_list3[0]) + int(ball_list4[0]) + int(
+                                ball_list5[0]) + int(ball_list2[1]) + int(ball_list3[1]) + int(
+                                ball_list4[1]) + int(
+                                ball_list5[1]))
+                            right_sum = (int(ball_list2[3]) + int(ball_list3[3]) + int(ball_list4[3]) + int(
+                                ball_list5[3]) + int(ball_list2[4]) + int(ball_list3[4]) + int(
+                                ball_list4[4]) + int(
+                                ball_list5[4]))
+                            # (2차 조건) 홀/홀:짝 인 경우
+                            if left_sum % 2 == 1 and right_sum % 2 == 1 and response_pball['content'][0][
+                                'numberOddEven'] == 'even':
+                                left_sum1 = (int(ball_list6[0]) + int(ball_list3[0]) + int(
+                                    ball_list4[0]) + int(
+                                    ball_list5[0]) + int(ball_list6[1]) + int(ball_list3[1]) + int(
+                                    ball_list4[1]) + int(
+                                    ball_list5[1]))
+                                right_sum1 = (int(ball_list6[3]) + int(ball_list3[3]) + int(
+                                    ball_list4[3]) + int(
+                                    ball_list5[3]) + int(ball_list6[4]) + int(ball_list3[4]) + int(
+                                    ball_list4[4]) + int(
+                                    ball_list5[4]))
+                                # (1차 조건) 홀/홀:홀 or 짝/짝:짝 인 경우
+                                if (left_sum1 % 2 == 0 and right_sum1 % 2 == 0 and
+                                    response_pball['content'][1][
+                                        'numberOddEven'] == 'even') or (
+                                        left_sum1 % 2 == 1 and right_sum1 % 2 == 1 and
+                                        response_pball['content'][1][
+                                            'numberOddEven'] == 'odd'):
+                                    print("패턴1 베팅")
+                                    textbrowser.append(datetime.datetime.now().strftime(
+                                        "[%m-%d %H:%M:%S] ") + "패턴1 직전회차 홀..")
+                                    textbrowser.verticalScrollBar().setValue(
+                                        textbrowser.verticalScrollBar().maximum())
                 time.sleep(100)
             except:
                 pass
