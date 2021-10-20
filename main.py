@@ -15,23 +15,30 @@ def parse_start():
     parse_count = 1
     #전체 프로세스 반복
     while True:
-        raw_data = 'view=action&action=ajaxPowerballLog&actionType=dayLog&date=2021-09-23&page=' + str(parse_count)
-        response = requests.post("https://www.powerballgame.co.kr/",headers={'content-length':'76','content-type':'application/x-www-form-urlencoded; charset=UTF-8'},data=raw_data).json()
+        raw_data = 'view=action&action=ajaxPowerballLog&actionType=dayLog&date=2021-10-19&page=' + str(parse_count)
+        try:
+            response = requests.post("https://www.powerballgame.co.kr/",headers={'content-length':'76','content-type':'application/x-www-form-urlencoded; charset=UTF-8'},data=raw_data).json()
+        except:
+            continue
         if last_round == int(response['content'][0]['round']):
             #print(last_round)
             #print(int(response['content'][0]['round']))
             print("패스")
             time.sleep(10)
             continue
+        parse_result = {}
         while response['endYN']=='N':
             if parse_count == 1:
                 last_round = int(response['content'][0]['round'])
             for contents in response['content']:
                 parse_result[contents['round']] = contents['powerballOddEven']
             parse_count += 1
-            raw_data = 'view=action&action=ajaxPowerballLog&actionType=dayLog&date=2021-09-23&page=' + str(parse_count)
-            response = requests.post("https://www.powerballgame.co.kr/", headers={'content-length': '76',
+            raw_data = 'view=action&action=ajaxPowerballLog&actionType=dayLog&date=2021-10-19&page=' + str(parse_count)
+            try:
+                response = requests.post("https://www.powerballgame.co.kr/", headers={'content-length': '76',
             'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'},data=raw_data).json()
+            except:
+                continue
         print(last_round)
         print(now_round)
         print(parse_result)
