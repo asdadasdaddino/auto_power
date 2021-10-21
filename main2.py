@@ -8,7 +8,10 @@ from PyQt5 import uic
 from PyQt5.QtCore import *
 
 form_class = uic.loadUiType("untitled.ui")[0]
-global userid, userpw, userkey, balance
+global userid, userpw, userkey, balance, now_round, last_round, bet_list
+now_round = 0
+last_round = 0
+bet_list = []
 
 class Thread(QThread):
     # 초기화 메서드 구현
@@ -17,13 +20,10 @@ class Thread(QThread):
         self.parent = parent #self.parent를 사용하여 WindowClass 위젯을 제어할 수 있다.
 
     def run(self):
+        global userid, userpw, userkey, balance, now_round, last_round, bet_list
         textbrowser = self.parent.textBrowser
         #쓰레드로 동작시킬 함수 내용 구현
-        # 파워볼 결과 파싱할때 가져올 페이지 시작번호
-        parse_count = 1
         # 파워볼 라운드번호 초기화
-        now_round = 0
-        last_round = 0
         while True:
             try:
                 #잔고 확인
@@ -31,17 +31,56 @@ class Thread(QThread):
                 balance = response_bal.json()['more_info']['wallet']
                 self.parent.bal_text.setText("현재 잔고 : "+balance+" 원")
 
+                # 배팅 내역 확인
+                self.parent.tableWidget.setEditTriggers(QAbstractItemView.NoEditTriggers)
+                self.parent.tableWidget.horizontalHeader().setSectionResizeMode(
+                    QHeaderView.ResizeToContents)
+                self.parent.tableWidget.setColumnCount(5)
+                self.parent.tableWidget.setRowCount(len(bet_list))
+                self.parent.tableWidget.setHorizontalHeaderLabels([" 회차 ", " 패턴 ", "홀/짝", " 금액 ", " 결과 "])
+                for i in range(len(bet_list)):
+                    for j in range(5):
+                        self.parent.tableWidget.setItem(i, j, QTableWidgetItem(bet_list[i][j]))
+
                 #파워볼 파싱 시작
                 current_time = datetime.datetime.now()
                 current_day = current_time.strftime("%Y-%m-%d")
-                raw_data = 'view=action&action=ajaxPowerballLog&actionType=dayLog&date='+current_day+'&page=' + str(
-                    parse_count)
+                raw_data = 'view=action&action=ajaxPowerballLog&actionType=dayLog&date='+current_day+'&page=1'
                 response_pball = requests.post("https://www.powerballgame.co.kr/", headers={'content-length': '76',
                                                                                       'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'},
                                          data=raw_data).json()
+                #이미 확인한 회차인지 판별
+                now_round = response_pball['content'][0]['round']
+                if now_round == last_round:
+                    continue
+
+                #배팅내역에 있다면 결과 처리
+                for bet in bet_list:
+                    if now_round == bet[0] and bet[4] == '':
+                        if bet[2] == response_pball['content'][0]['numberOddEven']:
+                            bet[3] = '적중'
+                        else:
+                            bet[3] = '미적중'
+                # 배팅 내역 확인
+                self.parent.tableWidget.setEditTriggers(QAbstractItemView.NoEditTriggers)
+                self.parent.tableWidget.horizontalHeader().setSectionResizeMode(
+                    QHeaderView.ResizeToContents)
+                self.parent.tableWidget.setColumnCount(5)
+                self.parent.tableWidget.setRowCount(len(bet_list))
+                self.parent.tableWidget.setHorizontalHeaderLabels([" 회차 ", " 패턴 ", "홀/짝", " 금액 ", " 결과 "])
+                for i in range(len(bet_list)):
+                    for j in range(5):
+                        self.parent.tableWidget.setItem(i, j, QTableWidgetItem(bet_list[i][j]))
+
                 #패턴1 체크/시작
                 if self.parent.checkBox_1.isChecked():
-
+                    if not self.parent.betmoney_1.text().isnumeric():
+                        textbrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ") + "경고!! 패턴1 배팅금액을 확인해주세요.")
+                        textbrowser.verticalScrollBar().setValue(textbrowser.verticalScrollBar().maximum())
+                        time.sleep(10)
+                        continue
+                    else:
+                        bet_money = self.parent.betmoney_1.text()
                     #최근결과 포함 6회차의 결과 필요
                     if len(response_pball['content']) > 6:
                         ball_list = response_pball['content'][0]['number'].split(',')
@@ -72,10 +111,23 @@ class Thread(QThread):
                                     'numberOddEven'] == 'even') or (
                                         left_sum1 % 2 == 1 and right_sum1 % 2 == 1 and response_pball['content'][1][
                                     'numberOddEven'] == 'odd'):
-                                    print("패턴1 베팅")
-                                    print()
-                                    textbrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"패턴1 직전회차 홀..")
-                                    textbrowser.verticalScrollBar().setValue(textbrowser.verticalScrollBar().maximum())
+                                    # 모든 조건 만족 홀 배팅
+                                    bet_round = int(now_round) + 1
+                                    response_bet = requests.get(
+                                        "http://point-900.com:8085/api/bet?userid=" + userid + "&key=" + userkey + "&gm=PWB&tdate="+current_time.strftime("%Y%m%d")+"&rno="+str(bet_round)+"&origin=auto&pp5="+str(bet_money)).json()
+                                    if response_bet['comment'] == 'ok':
+                                        #배팅내역 추가
+                                        bet_list.append([str(bet_round), '패턴1', 'odd', bet_money, ''])
+                                        textbrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"패턴1 매칭. "+str(bet_round)+"회차 홀 "+bet_money+"원 배팅 완료.")
+                                        textbrowser.verticalScrollBar().setValue(textbrowser.verticalScrollBar().maximum())
+                                        last_round = now_round
+                                    else:
+                                        #배팅 실패 오류 확인
+                                        textbrowser.append(
+                                            datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ") + "패턴1 매칭 / 배팅실패. 이유: "+response_bet['comment'])
+                                        textbrowser.verticalScrollBar().setValue(
+                                            textbrowser.verticalScrollBar().maximum())
+                                        pass
 
                         # (3차 조건-2) 마지막 회차의 왼쪽합/오른쪽합이 짝/짝: 인 경우
                         if (int(ball_list[0]) + int(ball_list[1])) % 2 == 0 and (
@@ -108,12 +160,101 @@ class Thread(QThread):
                                         left_sum1 % 2 == 1 and right_sum1 % 2 == 1 and
                                         response_pball['content'][1][
                                             'numberOddEven'] == 'odd'):
-                                    print("패턴1 베팅")
-                                    textbrowser.append(datetime.datetime.now().strftime(
-                                        "[%m-%d %H:%M:%S] ") + "패턴1 직전회차 홀..")
-                                    textbrowser.verticalScrollBar().setValue(
-                                        textbrowser.verticalScrollBar().maximum())
-                time.sleep(100)
+                                    # 모든 조건 만족 짝 배팅
+                                    bet_round = int(now_round) + 1
+                                    response_bet = requests.get(
+                                        "http://point-900.com:8085/api/bet?userid=" + userid + "&key=" + userkey + "&gm=PWB&tdate=" + current_time.strftime(
+                                            "%Y%m%d") + "&rno=" + str(bet_round) + "&origin=auto&pp6=" + str(
+                                            bet_money)).json()
+                                    if response_bet['comment'] == 'ok':
+                                        # 배팅내역 추가
+                                        bet_list.append([str(bet_round), '패턴1', 'even', bet_money, ''])
+                                        textbrowser.append(
+                                            datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ") + "패턴1 매칭. " + str(
+                                                bet_round) + "회차 짝 " + bet_money + "원 배팅 완료.")
+                                        textbrowser.verticalScrollBar().setValue(
+                                            textbrowser.verticalScrollBar().maximum())
+                                        last_round = now_round
+                                    else:
+                                        # 배팅 실패 오류 확인
+                                        textbrowser.append(
+                                            datetime.datetime.now().strftime(
+                                                "[%m-%d %H:%M:%S] ") + "패턴1 매칭 / 배팅실패. 이유: " + response_bet['comment'])
+                                        textbrowser.verticalScrollBar().setValue(
+                                            textbrowser.verticalScrollBar().maximum())
+                                        continue
+
+                #패턴2 체크/시작
+                if self.parent.checkBox_2.isChecked():
+                    if not self.parent.betmoney_2.text().isnumeric():
+                        textbrowser.append(datetime.datetime.now().strftime(
+                            "[%m-%d %H:%M:%S] ") + "경고!! 패턴2 배팅금액을 확인해주세요.")
+                        textbrowser.verticalScrollBar().setValue(
+                            textbrowser.verticalScrollBar().maximum())
+                        time.sleep(10)
+                        continue
+                    else:
+                        bet_money = self.parent.betmoney_2.text()
+                    # 최근결과 포함 1회차의 결과 필요
+                    if len(response_pball['content']) > 1:
+                        ball_list = response_pball['content'][0]['number'].split(',')
+
+                        # (조건) 마지막 회차 홀 인 경우
+                        if response_pball['content'][0]['numberOddEven'] == 'odd':
+                            # 모든 조건 만족 짝 배팅
+                            bet_round = int(now_round) + 1
+                            response_bet = requests.get(
+                                "http://point-900.com:8085/api/bet?userid=" + userid + "&key=" + userkey + "&gm=PWB&tdate=" + current_time.strftime(
+                                    "%Y%m%d") + "&rno=" + str(
+                                    bet_round) + "&origin=auto&pp6=" + str(bet_money)).json()
+                            if response_bet['comment'] == 'ok':
+                                # 배팅내역 추가
+                                bet_list.append([str(bet_round), '패턴2', 'even', bet_money, ''])
+                                textbrowser.append(datetime.datetime.now().strftime(
+                                    "[%m-%d %H:%M:%S] ") + "패턴2 매칭. " + str(
+                                    bet_round) + "회차 짝 " + bet_money + "원 배팅 완료.")
+                                textbrowser.verticalScrollBar().setValue(
+                                    textbrowser.verticalScrollBar().maximum())
+                                last_round = now_round
+                            else:
+                                # 배팅 실패 오류 확인
+                                textbrowser.append(
+                                    datetime.datetime.now().strftime(
+                                        "[%m-%d %H:%M:%S] ") + "패턴2 매칭 / 배팅실패. 이유: " +
+                                    response_bet['comment'])
+                                textbrowser.verticalScrollBar().setValue(
+                                    textbrowser.verticalScrollBar().maximum())
+                                pass
+
+                        # (조건) 마지막 회차 짝 인 경우
+                        if response_pball['content'][0]['numberOddEven'] == 'even':
+                            # 모든 조건 만족 홀 배팅
+                            bet_round = int(now_round) + 1
+                            response_bet = requests.get(
+                                "http://point-900.com:8085/api/bet?userid=" + userid + "&key=" + userkey + "&gm=PWB&tdate=" + current_time.strftime(
+                                    "%Y%m%d") + "&rno=" + str(
+                                    bet_round) + "&origin=auto&pp5=" + str(bet_money)).json()
+                            if response_bet['comment'] == 'ok':
+                                # 배팅내역 추가
+                                bet_list.append([str(bet_round), '패턴2', 'odd', bet_money, ''])
+                                textbrowser.append(datetime.datetime.now().strftime(
+                                    "[%m-%d %H:%M:%S] ") + "패턴2 매칭. " + str(
+                                    bet_round) + "회차 홀 " + bet_money + "원 배팅 완료.")
+                                textbrowser.verticalScrollBar().setValue(
+                                    textbrowser.verticalScrollBar().maximum())
+                                last_round = now_round
+                            else:
+                                # 배팅 실패 오류 확인
+                                textbrowser.append(
+                                    datetime.datetime.now().strftime(
+                                        "[%m-%d %H:%M:%S] ") + "패턴2 매칭 / 배팅실패. 이유: " +
+                                    response_bet['comment'])
+                                textbrowser.verticalScrollBar().setValue(
+                                    textbrowser.verticalScrollBar().maximum())
+                                pass
+
+                last_round=now_round
+                time.sleep(10)
             except:
                 pass
 
