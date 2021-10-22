@@ -1,13 +1,20 @@
 import sys
+import os
 import time
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
+
 import requests
 import datetime
 
 from PyQt5.QtWidgets import *
 from PyQt5 import uic
 from PyQt5.QtCore import *
+from PyQt5.QtGui import QIcon
 
-form_class = uic.loadUiType("untitled.ui")[0]
+form_class = uic.loadUiType(resource_path("untitled.ui"))[0]
 global userid, userpw, userkey, balance, now_round, last_round, bet_list
 now_round = 0
 last_round = 0
@@ -26,29 +33,35 @@ class Thread(QThread):
         # 파워볼 라운드번호 초기화
         while True:
             try:
+                time.sleep(3)
                 #잔고 확인
                 response_bal = requests.get("http://point-900.com:8085/auto/api/user_bal?u="+userid+"&k=" + userkey)
                 balance = response_bal.json()['more_info']['wallet']
                 self.parent.bal_text.setText("현재 잔고 : "+balance+" 원")
 
                 # 배팅 내역 확인
-                self.parent.tableWidget.setEditTriggers(QAbstractItemView.NoEditTriggers)
-                self.parent.tableWidget.horizontalHeader().setSectionResizeMode(
-                    QHeaderView.ResizeToContents)
-                self.parent.tableWidget.setColumnCount(5)
-                self.parent.tableWidget.setRowCount(len(bet_list))
-                self.parent.tableWidget.setHorizontalHeaderLabels([" 회차 ", " 패턴 ", "홀/짝", " 금액 ", " 결과 "])
-                for i in range(len(bet_list)):
-                    for j in range(5):
-                        self.parent.tableWidget.setItem(i, j, QTableWidgetItem(bet_list[i][j]))
+                if len(bet_list) > 0:
+                    self.parent.tableWidget.setEditTriggers(QAbstractItemView.NoEditTriggers)
+                    self.parent.tableWidget.horizontalHeader().setSectionResizeMode(
+                        QHeaderView.ResizeToContents)
+                    self.parent.tableWidget.setColumnCount(5)
+                    self.parent.tableWidget.setRowCount(len(bet_list))
+                    self.parent.tableWidget.setHorizontalHeaderLabels([" 회차 ", " 패턴 ", "홀/짝", " 금액 ", " 결과 "])
+                    for i in range(len(bet_list)):
+                        for j in range(5):
+                            self.parent.tableWidget.setItem(i, j, QTableWidgetItem(bet_list[i][j]))
 
                 #파워볼 파싱 시작
                 current_time = datetime.datetime.now()
                 current_day = current_time.strftime("%Y-%m-%d")
                 raw_data = 'view=action&action=ajaxPowerballLog&actionType=dayLog&date='+current_day+'&page=1'
-                response_pball = requests.post("https://www.powerballgame.co.kr/", headers={'content-length': '76',
+                response_pball_req = requests.post("https://www.powerballgame.co.kr/", headers={'content-length': '76',
                                                                                       'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'},
-                                         data=raw_data).json()
+                                         data=raw_data)
+                if response_pball_req.status_code == 200:
+                    response_pball = response_pball_req.json()
+                else:
+                    continue
                 #이미 확인한 회차인지 판별
                 now_round = response_pball['content'][0]['round']
                 if now_round == last_round:
@@ -58,19 +71,21 @@ class Thread(QThread):
                 for bet in bet_list:
                     if now_round == bet[0] and bet[4] == '':
                         if bet[2] == response_pball['content'][0]['numberOddEven']:
-                            bet[3] = '적중'
+                            bet[4] = '적중'
                         else:
-                            bet[3] = '미적중'
+                            bet[4] = '미적중'
+
                 # 배팅 내역 확인
-                self.parent.tableWidget.setEditTriggers(QAbstractItemView.NoEditTriggers)
-                self.parent.tableWidget.horizontalHeader().setSectionResizeMode(
-                    QHeaderView.ResizeToContents)
-                self.parent.tableWidget.setColumnCount(5)
-                self.parent.tableWidget.setRowCount(len(bet_list))
-                self.parent.tableWidget.setHorizontalHeaderLabels([" 회차 ", " 패턴 ", "홀/짝", " 금액 ", " 결과 "])
-                for i in range(len(bet_list)):
-                    for j in range(5):
-                        self.parent.tableWidget.setItem(i, j, QTableWidgetItem(bet_list[i][j]))
+                if len(bet_list) > 0:
+                    self.parent.tableWidget.setEditTriggers(QAbstractItemView.NoEditTriggers)
+                    self.parent.tableWidget.horizontalHeader().setSectionResizeMode(
+                        QHeaderView.ResizeToContents)
+                    self.parent.tableWidget.setColumnCount(5)
+                    self.parent.tableWidget.setRowCount(len(bet_list))
+                    self.parent.tableWidget.setHorizontalHeaderLabels([" 회차 ", " 패턴 ", "홀/짝", " 금액 ", " 결과 "])
+                    for i in range(len(bet_list)):
+                        for j in range(5):
+                            self.parent.tableWidget.setItem(i, j, QTableWidgetItem(bet_list[i][j]))
 
                 #패턴1 체크/시작
                 if self.parent.checkBox_1.isChecked():
@@ -252,8 +267,6 @@ class Thread(QThread):
                                 textbrowser.verticalScrollBar().setValue(
                                     textbrowser.verticalScrollBar().maximum())
                                 pass
-
-                last_round=now_round
                 time.sleep(10)
             except:
                 pass
@@ -276,9 +289,13 @@ class WindowClass(QMainWindow, form_class) :
         userid = self.input_id.text()
         userpw = self.input_pw.text()
         if self.start_btn.text() == "시작":
+            # 시간검사(유료)
+            if int(datetime.datetime.now().strftime("%m%d")) > 1120:
+                QMessageBox.critical(self, "네트워크 오류", "제품등록을 확인해주세요.")
             # id/pw 검증
-            if userid =="" or userpw=="":
+            elif userid =="" or userpw=="":
                 QMessageBox.critical(self,"로그인 오류","ID/PW를 입력해주세요.")
+
             # 로그인 시작
             else:
                 response_login = requests.get(
@@ -289,7 +306,7 @@ class WindowClass(QMainWindow, form_class) :
                     if response_login_data['code'] != 1:
                         QMessageBox.critical(self, "로그인 실패", "ID/PW를 확인해주세요.")
                     else:
-                        self.textBrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"베팅을 시작합니다.")
+                        self.textBrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"배팅을 시작합니다.")
                         userkey = response_login_data['more_info']['key']
                         self.start_btn.setText("정지")
                         if self.Th1.isRunning():
@@ -302,7 +319,7 @@ class WindowClass(QMainWindow, form_class) :
                     QMessageBox.critical(self, "사이트 접속 실패", "사이트 상태를 확인해주세요.")
 
         else:
-            self.textBrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"베팅을 정지합니다.")
+            self.textBrowser.append(datetime.datetime.now().strftime("[%m-%d %H:%M:%S] ")+"배팅을 정지합니다.")
             self.start_btn.setText("시작")
             if self.Th1.isRunning():
                 self.Th1.terminate()
@@ -315,6 +332,8 @@ if __name__ == "__main__" :
     #WindowClass의 인스턴스 생성
     myWindow = WindowClass()
 
+    myWindow.setWindowTitle("파워볼 패턴 오토프로그램")
+    myWindow.setWindowIcon(QIcon(resource_path('auto.png')))
     #프로그램 화면을 보여주는 코드
     myWindow.show()
 
